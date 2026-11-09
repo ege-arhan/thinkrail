@@ -53,6 +53,9 @@ import type {
 	ProviderStatusReport,
 	ProviderWarning,
 	PrPreview,
+	RemoteAccessStatus,
+	RemoteDeviceAccess,
+	RemotePairingLink,
 	ResourceHistoryCursor,
 	ResourceHistoryPage,
 	ResourceKind,
@@ -135,7 +138,8 @@ export type TemplateReadLocation =
 	| { projectId: string; workspaceId?: never }
 	| { workspaceId?: never; projectId?: never };
 
-export const PROTOCOL_VERSION = 102;
+export const PROTOCOL_VERSION = 103;
+export const REMOTE_ACCESS_PROTOCOL_VERSION = 103;
 export const FONTS_PROTOCOL_VERSION = 102;
 export const CUSTOM_ENDPOINTS_PROTOCOL_VERSION = 101;
 export const PI_PACKAGES_PROTOCOL_VERSION = 100;
@@ -270,6 +274,12 @@ export const WS_METHODS = {
 	gitPrefetch: "git.prefetch",
 	githubAuthStatus: "github.authStatus",
 	githubRefresh: "github.refresh",
+	remoteStatus: "remote.status",
+	remoteSetEnabled: "remote.setEnabled",
+	remoteIssueLink: "remote.issueLink",
+	remoteRevokeDevice: "remote.revokeDevice",
+	remoteRenameDevice: "remote.renameDevice",
+	remoteSetDeviceAccess: "remote.setDeviceAccess",
 	prPreview: "pr.preview",
 	prOpen: "pr.open",
 	prGenerate: "pr.generate",
@@ -441,6 +451,8 @@ export const WS_CHANNELS = {
 	themesChanged: "themes.changed",
 	packagesChanged: "packages.changed",
 	fontsChanged: "fonts.changed",
+	/** To one paired device only: its access, after the welcome and whenever this computer changes it. */
+	remoteDeviceAccess: "remote.deviceAccess",
 } as const;
 
 type SameUnion<A extends B, B extends C, C = A> = A;
@@ -792,6 +804,15 @@ export interface WsMethodMap {
 	"git.prefetch": { params: { projectId: string; ref: string }; result: { ok: boolean } };
 	"github.authStatus": { params: Record<string, never>; result: GithubAuthStatus };
 	"github.refresh": { params: Record<string, never>; result: GithubAuthStatus };
+	"remote.status": { params: Record<string, never>; result: RemoteAccessStatus };
+	"remote.setEnabled": { params: { enabled: boolean }; result: RemoteAccessStatus };
+	"remote.issueLink": { params: Record<string, never>; result: RemotePairingLink };
+	"remote.revokeDevice": { params: { id: string }; result: RemoteAccessStatus };
+	"remote.renameDevice": { params: { id: string; label: string }; result: RemoteAccessStatus };
+	"remote.setDeviceAccess": {
+		params: { id: string; access: RemoteDeviceAccess };
+		result: RemoteAccessStatus;
+	};
 	"pr.preview": {
 		params: {
 			workspaceId: string;
@@ -1283,6 +1304,12 @@ export type WsErrorCode =
 	| "SURVEY_CHANGED"
 	| "SURVEY_INVALID"
 	| "SURVEY_NOT_SENT"
+	| "REMOTE_ACCESS_LOCAL_ONLY"
+	| "REMOTE_ACCESS_OFF"
+	| "REMOTE_DEVICE_READ_ONLY"
+	| "REMOTE_DEVICE_REVOKED"
+	| "REMOTE_DEVICE_LABEL_EMPTY"
+	| "REMOTE_DEVICE_ACCESS_INVALID"
 	| "PACKAGE_SOURCE_INVALID"
 	| "PACKAGE_OFFLINE"
 	| "PACKAGE_UNTRUSTED"
