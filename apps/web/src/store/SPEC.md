@@ -82,6 +82,11 @@ re-read while a server starts. The state vocabulary and the attention/active pre
   for reconnect hydration, while **`welcomeGeneration`** advances only when one complete
   `server.welcome` snapshot lands. Every connection-status transition clears `protocolVersion`, so UI
   capabilities remain unavailable between sockets and until the current socket's welcome is installed.
+  **`resetHostState()`** returns every host-scoped slice (`initialHostState()`: domain state, the
+  workspace-keyed views and requests, host config to defaults) to its initial value when the transport moves
+  to another host; monotonic counters (`connectionGeneration`, `welcomeGeneration`, provider and revision
+  versions), the workbench frame and client preferences survive, so a reply from the previous host still
+  fails its generation guard.
   **`installWelcomeSnapshot(protocolVersion, projects, recentProjects,
   config?, hostPlatform?, hostUpdate?)`** installs protocol + both sorted project views + optional config,
   host platform, optional host-update lifecycle snapshot + navigation repair and then advances that readiness
@@ -116,7 +121,9 @@ re-read while a server starts. The state vocabulary and the attention/active pre
   **Settled shelf.** `selectors.ts` owns **`selectWorkspacePartition(state, projectId, now)`** — the one
   derivation of a project's rows into `live` and `settled` (each settled row carrying its reason:
   `override`, `review merged|closed`, or `idle since`), consumed by the rail, the topbar's *Switch to*
-  menu, and the shelf alike so the three can never disagree; **`selectAutoSettledCounts(state, now)`**
+  menu, and the shelf alike so the three can never disagree — it feeds the store's state (support flag,
+  `settleIdleDays`, running/attention, the live latch) into contracts' `partitionWorkspaces`, the rule the phone
+  shares; **`selectAutoSettledCounts(state, now)`**
   reuses its per-row rule to count, per loaded project, only the rows the shelf took on its own (never an
   `override`), which is what the rail's one-time first-move notice announces. Below
   `WORKSPACE_SETTLE_PROTOCOL_VERSION` it returns the host's raw list as `live`, unsorted, and ignores even

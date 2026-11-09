@@ -4,9 +4,14 @@ import {
 	RiShieldCheckLine as ShieldCheck,
 	RiAlertLine as TriangleAlert,
 } from "@remixicon/react";
+import {
+	ALL_PLUGINS_GROUP,
+	groupSkills,
+	isLeadingSkillGroup,
+	type SkillGroup,
+} from "@thinkrail/chat-ui/skillGroups";
 import type { Project, SkillCatalogEntry, Workspace } from "@thinkrail/contracts";
-import type { MessageKey } from "@thinkrail/locales";
-import { T, type Translator, t as translate, useT } from "@thinkrail/locales/react";
+import { T, t as translate, useT } from "@thinkrail/locales/react";
 import { Button } from "@thinkrail/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@thinkrail/ui/dialog";
 import { LoadingRegion } from "@thinkrail/ui/skeleton";
@@ -23,45 +28,6 @@ import {
 	untrustedNoticeText,
 } from "./projectTrust";
 import { useProjectTrustSummary } from "./useProjectTrustSummary";
-
-const TIER_META: Record<string, { label: MessageKey | null; hint: MessageKey; rank: number }> = {
-	bundled: { label: null, hint: "chat.skills.tier.bundledHint", rank: 0 },
-	pi: { label: null, hint: "chat.skills.tier.piHint", rank: 1 },
-	personal: { label: "chat.skills.tier.personal", hint: "chat.skills.tier.personalHint", rank: 2 },
-	project: { label: "chat.skills.tier.project", hint: "chat.skills.tier.projectHint", rank: 4 },
-};
-
-const TIER_BRAND: Record<string, string> = { bundled: "ThinkRail", pi: "Pi" };
-
-interface Group {
-	key: string;
-	label: string;
-	hint: string;
-	isPlugin: boolean;
-	items: SkillCatalogEntry[];
-}
-
-function groupCatalog(t: Translator, entries: SkillCatalogEntry[]): Group[] {
-	const byKey = new Map<string, { isPlugin: boolean; items: SkillCatalogEntry[] }>();
-	for (const entry of entries) {
-		const group = byKey.get(entry.group) ?? { isPlugin: Boolean(entry.plugin), items: [] };
-		group.items.push(entry);
-		byKey.set(entry.group, group);
-	}
-	return [...byKey.entries()]
-		.map(([key, group]) => {
-			const meta = TIER_META[key];
-			return {
-				key,
-				label: meta?.label ? t(meta.label) : (TIER_BRAND[key] ?? key),
-				hint: group.isPlugin ? t("chat.skills.pluginHint") : meta ? t(meta.hint) : "",
-				isPlugin: group.isPlugin,
-				items: group.items,
-				rank: group.isPlugin ? 3 : (meta?.rank ?? 5),
-			};
-		})
-		.sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label));
-}
 
 function isWorkspace(result: Project | Workspace): result is Workspace {
 	return "projectId" in result;
@@ -157,7 +123,7 @@ export function SkillsDialog({
 		);
 
 	const disabledGroups = new Set(project?.disabledGroups ?? []);
-	const pluginsDisabled = disabledGroups.has("@plugins");
+	const pluginsDisabled = disabledGroups.has(ALL_PLUGINS_GROUP);
 	const catalogAliases = (entries ?? [])
 		.filter((entry) => entry.decision === "untrusted")
 		.map((entry) => entry.name);
@@ -169,13 +135,12 @@ export function SkillsDialog({
 		},
 	);
 	const trustEnables = trustNotice.kind === "untrusted" ? trustEnablesText(t, trustNotice) : null;
-	const groups = groupCatalog(t, entries ?? []);
+	const groups = groupSkills(t, entries ?? []);
 	const hasPlugins = groups.some((g) => g.isPlugin);
-	const isLeadingKey = (key: string) => key === "bundled" || key === "pi";
-	const leadingGroups = groups.filter((g) => isLeadingKey(g.key));
-	const otherGroups = groups.filter((g) => !isLeadingKey(g.key));
+	const leadingGroups = groups.filter((g) => isLeadingSkillGroup(g.key));
+	const otherGroups = groups.filter((g) => !isLeadingSkillGroup(g.key));
 
-	const renderGroup = (group: Group) => {
+	const renderGroup = (group: SkillGroup) => {
 		const lockedByMaster = group.isPlugin && pluginsDisabled;
 		const groupOn = !lockedByMaster && !disabledGroups.has(group.key);
 		return (
@@ -183,7 +148,7 @@ export function SkillsDialog({
 				<div
 					className={cn(
 						"sticky z-10 flex items-center gap-8 border-border-default border-y bg-container-header-bg px-8 py-8",
-						hasPlugins && !isLeadingKey(group.key) ? "top-32" : "top-0",
+						hasPlugins && !isLeadingSkillGroup(group.key) ? "top-32" : "top-0",
 					)}
 				>
 					{group.isPlugin ? (
@@ -335,7 +300,7 @@ export function SkillsDialog({
 										busy={busy}
 										label={t("chat.skills.enableAllPlugins")}
 										testId="all-plugins-toggle"
-										onCheckedChange={(enabled) => setGroupEnabled("@plugins", enabled)}
+										onCheckedChange={(enabled) => setGroupEnabled(ALL_PLUGINS_GROUP, enabled)}
 									/>
 								</div>
 							) : null}

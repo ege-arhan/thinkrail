@@ -1,3 +1,14 @@
+import { assistantFailure } from "@thinkrail/chat-ui/assistantFailure";
+import type { ChatMessageOrder } from "@thinkrail/chat-ui/chatMessageOrder";
+import type { HydratedRuntime } from "@thinkrail/chat-ui/hydrate";
+import { insertRoundCloser } from "@thinkrail/chat-ui/roundCloser";
+import type {
+	ChatAttachment,
+	ChatTurn,
+	CompactionState,
+	ExtUiDialogRequest,
+	ToolResultState,
+} from "@thinkrail/chat-ui/types";
 import type {
 	AppConfig,
 	AppSurvey,
@@ -67,17 +78,6 @@ import {
 import { t } from "@thinkrail/locales/react";
 import { create } from "zustand";
 import type { LoginState } from "../auth";
-import { assistantFailure } from "../chat/assistantFailure";
-import type { ChatMessageOrder } from "../chat/chatPreferences";
-import type { HydratedRuntime } from "../chat/hydrate";
-import { insertRoundCloser } from "../chat/roundCloser";
-import type {
-	ChatAttachment,
-	ChatTurn,
-	CompactionState,
-	ExtUiDialogRequest,
-	ToolResultState,
-} from "../chat/types";
 import {
 	ancestorPaths,
 	defaultTerminalIndex,
@@ -421,6 +421,7 @@ export const SettingsSection = {
 	Feedback: "feedback",
 	Extensions: "extensions",
 	Environment: "environment",
+	Phone: "phone",
 } as const;
 export type SettingsSection = (typeof SettingsSection)[keyof typeof SettingsSection];
 
@@ -1118,6 +1119,7 @@ interface AppState {
 	customLayoutPresets: LayoutPreset[];
 	toasts: Toast[];
 	setStatus: (status: ConnectionStatus) => void;
+	resetHostState: () => void;
 	setOnboardingWizard: (gate: OnboardingWizardGate) => void;
 	installWelcomeSnapshot: (
 		protocolVersion: number,
@@ -2278,88 +2280,170 @@ function nextTerminalTitle(list: TerminalTab[]): string {
 	return defaultTerminalTitle(Math.max(0, ...used) + 1);
 }
 
+type HostState = Pick<
+	AppState,
+	| "status"
+	| "protocolVersion"
+	| "hostPlatform"
+	| "hostAppVersion"
+	| "hostUpdate"
+	| "projects"
+	| "recentProjects"
+	| "workspaces"
+	| "removedWorkspaceIds"
+	| "expandedProjectIds"
+	| "workspaceSettlingSupported"
+	| "settledShelfExpanded"
+	| "settledShelfShown"
+	| "selectedProjectId"
+	| "activeWorkspaceId"
+	| "activeWorkspaceLiveLatch"
+	| "workspaceSelectionHistory"
+	| "routeChatTarget"
+	| "workspaceViewsByWorkspace"
+	| "layoutDocumentsByWorkspace"
+	| "layoutAttentionByWorkspace"
+	| "layoutIntents"
+	| "tabsByWorkspace"
+	| "activeTabByWorkspace"
+	| "previewTabByWorkspace"
+	| "navTickByWorkspace"
+	| "closedChatsByWorkspace"
+	| "chatStartsByWorkspace"
+	| "worktreeCreationsByProject"
+	| "deletedSessionsByWorkspace"
+	| "terminalsByWorkspace"
+	| "activeTerminalByWorkspace"
+	| "sessions"
+	| "sessionStateByWorkspace"
+	| "sessionStateSnapshotInstalled"
+	| "renderedCompletionBySession"
+	| "markingUnreadWorkspaces"
+	| "markedUnreadBySession"
+	| "obscuredChatSessions"
+	| "extUiOrphans"
+	| "models"
+	| "providerStatus"
+	| "modelsRefreshing"
+	| "modelsFresh"
+	| "changesRequest"
+	| "specRequest"
+	| "specsByWorkspace"
+	| "reviewsByWorkspace"
+	| "reviewFocusRequest"
+	| "filesTreeByWorkspace"
+	| "diffScopeByWorkspace"
+	| "chatLocationRequest"
+	| "historyOpenRequest"
+	| "fsChangesByWorkspace"
+	| "turnsByWorkspace"
+	| "skillChangeTickByWorkspace"
+	| "skillsSyncedTickBySession"
+	| "activeLogin"
+	| "loginStarting"
+	| "unheldLoginFrame"
+	| "surveyInvitationOpen"
+	| "inAppSurvey"
+	| "localLocales"
+	| "userThemes"
+	| "userFonts"
+	| "resourceSnapshots"
+	| "mcpByWorkspace"
+>;
+
+function initialHostState(): HostState {
+	return {
+		status: "connecting",
+		protocolVersion: null,
+		hostPlatform: null,
+		hostAppVersion: null,
+		hostUpdate: null,
+		projects: [],
+		recentProjects: [],
+		workspaces: {},
+		removedWorkspaceIds: nullProto<Record<string, true>>(),
+		expandedProjectIds: nullProto<Record<string, true>>(),
+		workspaceSettlingSupported: false,
+		settledShelfExpanded: nullProto<Record<string, true>>(),
+		settledShelfShown: nullProto<Record<string, number>>(),
+		selectedProjectId: null,
+		activeWorkspaceId: null,
+		activeWorkspaceLiveLatch: false,
+		workspaceSelectionHistory: [],
+		routeChatTarget: null,
+		workspaceViewsByWorkspace: {},
+		layoutDocumentsByWorkspace: {},
+		layoutAttentionByWorkspace: {},
+		layoutIntents: [],
+		tabsByWorkspace: {},
+		activeTabByWorkspace: {},
+		previewTabByWorkspace: {},
+		navTickByWorkspace: {},
+		closedChatsByWorkspace: {},
+		chatStartsByWorkspace: {},
+		worktreeCreationsByProject: {},
+		deletedSessionsByWorkspace: nullProto<Record<string, Record<string, true>>>(),
+		terminalsByWorkspace: {},
+		activeTerminalByWorkspace: {},
+		sessions: {},
+		sessionStateByWorkspace: {},
+		sessionStateSnapshotInstalled: false,
+		renderedCompletionBySession: {},
+		markingUnreadWorkspaces: {},
+		markedUnreadBySession: {},
+		obscuredChatSessions: {},
+		extUiOrphans: [],
+		models: [],
+		providerStatus: { version: -1, report: null, failed: false },
+		modelsRefreshing: false,
+		modelsFresh: false,
+		changesRequest: null,
+		specRequest: null,
+		specsByWorkspace: {},
+		reviewsByWorkspace: {},
+		reviewFocusRequest: null,
+		filesTreeByWorkspace: {},
+		diffScopeByWorkspace: {},
+		chatLocationRequest: null,
+		historyOpenRequest: null,
+		fsChangesByWorkspace: {},
+		turnsByWorkspace: {},
+		skillChangeTickByWorkspace: {},
+		skillsSyncedTickBySession: {},
+		activeLogin: null,
+		loginStarting: false,
+		unheldLoginFrame: null,
+		surveyInvitationOpen: false,
+		inAppSurvey: null,
+		localLocales: null,
+		userThemes: null,
+		userFonts: null,
+		resourceSnapshots: {},
+		mcpByWorkspace: {},
+	};
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
-	status: "connecting",
+	...initialHostState(),
 	connectionGeneration: 0,
 	welcomeGeneration: 0,
-	protocolVersion: null,
-	hostPlatform: null,
-	hostAppVersion: null,
-	hostUpdate: null,
-	projects: [],
-	recentProjects: [],
-	workspaces: {},
-	removedWorkspaceIds: nullProto<Record<string, true>>(),
-	expandedProjectIds: nullProto<Record<string, true>>(),
-	workspaceSettlingSupported: false,
-	settledShelfExpanded: nullProto<Record<string, true>>(),
-	settledShelfShown: nullProto<Record<string, number>>(),
-	selectedProjectId: null,
-	activeWorkspaceId: null,
-	activeWorkspaceLiveLatch: false,
-	workspaceSelectionHistory: [],
-	routeChatTarget: null,
 	routeChatTargetGeneration: 0,
 	workbenchFrame: null,
-	workspaceViewsByWorkspace: {},
 	layoutStateReady: false,
 	localLayoutPreferences: { ...DEFAULT_LOCAL_LAYOUT_PREFERENCES },
-	layoutDocumentsByWorkspace: {},
-	layoutAttentionByWorkspace: {},
 	layoutProjectionEpoch: 0,
-	layoutIntents: [],
-	tabsByWorkspace: {},
-	activeTabByWorkspace: {},
-	previewTabByWorkspace: {},
-	navTickByWorkspace: {},
-	closedChatsByWorkspace: {},
-	chatStartsByWorkspace: {},
-	worktreeCreationsByProject: {},
-	deletedSessionsByWorkspace: nullProto<Record<string, Record<string, true>>>(),
-	terminalsByWorkspace: {},
-	activeTerminalByWorkspace: {},
-	sessions: {},
-	sessionStateByWorkspace: {},
 	sessionStateClock: 0,
-	sessionStateSnapshotInstalled: false,
-	renderedCompletionBySession: {},
-	markingUnreadWorkspaces: {},
-	markedUnreadBySession: {},
-	obscuredChatSessions: {},
-	extUiOrphans: [],
-	models: [],
 	hiddenModels: [],
 	providerVersion: 0,
 	providerStatusVersion: 0,
-	providerStatus: { version: -1, report: null, failed: false },
 	templatesVersion: 0,
 	packagesVersion: 0,
-	modelsRefreshing: false,
-	modelsFresh: false,
-	changesRequest: null,
-	specRequest: null,
-	specsByWorkspace: {},
-	reviewsByWorkspace: {},
-	reviewFocusRequest: null,
 	changesView: "tree",
 	filesMode: "all",
-	filesTreeByWorkspace: {},
 	changesLayout: "stacked",
-	diffScopeByWorkspace: {},
-	chatLocationRequest: null,
-	historyOpenRequest: null,
-	fsChangesByWorkspace: {},
-	turnsByWorkspace: {},
-	skillChangeTickByWorkspace: {},
-	skillsSyncedTickBySession: {},
-	activeLogin: null,
-	loginStarting: false,
-	unheldLoginFrame: null,
 	settingsOpen: false,
 	settingsSection: SettingsSection.Providers,
-	surveyInvitationOpen: false,
 	surveyWindowOpen: false,
-	inAppSurvey: null,
 	notificationPromptOpen: false,
 	searchOpen: false,
 	searchSession: 0,
@@ -2396,23 +2480,18 @@ export const useAppStore = create<AppState>((set, get) => ({
 	disabledExtensions: DEFAULT_CONFIG.disabledExtensions,
 	disabledPackages: DEFAULT_CONFIG.disabledPackages,
 	locale: DEFAULT_CONFIG.locale,
-	localLocales: null,
 	installLocalLocales: (snapshot) => set({ localLocales: snapshot }),
-	userThemes: null,
 	installUserThemes: (snapshot) => set({ userThemes: snapshot }),
 	interfaceFont: DEFAULT_CONFIG.interfaceFont,
 	codeFont: DEFAULT_CONFIG.codeFont,
 	codeFontSize: DEFAULT_CONFIG.codeFontSize,
 	codeLigatures: DEFAULT_CONFIG.codeLigatures,
 	fontWeightOffset: DEFAULT_CONFIG.fontWeightOffset,
-	userFonts: null,
 	installUserFonts: (snapshot) => set({ userFonts: snapshot }),
 	onboardingDismissed: DEFAULT_CONFIG.onboardingDismissed,
 	onboardingWizard: "pending",
 	toasts: [],
-	resourceSnapshots: {},
 	resourceRevision: 0,
-	mcpByWorkspace: {},
 	mcpRevision: 0,
 	installMcpList: (read, result) =>
 		set((state) => {
@@ -2569,6 +2648,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 			},
 		})),
 	setOnboardingWizard: (onboardingWizard) => set({ onboardingWizard }),
+	resetHostState: () => set({ ...initialHostState(), ...configPatch(DEFAULT_CONFIG) }),
 	setStatus: (status) =>
 		set((state) => ({
 			status,

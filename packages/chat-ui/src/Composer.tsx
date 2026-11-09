@@ -151,6 +151,7 @@ interface ComposerProps {
 	onChange: (value: string) => void;
 	isStreaming: boolean;
 	growthLimit: ComposerGrowthLimit;
+	divider?: boolean;
 	commands: SlashCommandItem[];
 	templatePending: boolean;
 	mentionCandidates: MentionCandidate[];
@@ -198,6 +199,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 		onChange,
 		isStreaming,
 		growthLimit,
+		divider = true,
 		commands,
 		templatePending,
 		mentionCandidates,
@@ -498,7 +500,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 			data-testid="chat-composer"
 			data-expanded={expanded}
 			data-streaming={isStreaming}
-			className="relative flex shrink-0 flex-col border-border-muted border-t bg-container-workspace-bg"
+			className={cn(
+				"relative flex shrink-0 flex-col bg-container-workspace-bg",
+				divider && "border-border-muted border-t",
+			)}
 		>
 			{mentionOpen ? (
 				<div
